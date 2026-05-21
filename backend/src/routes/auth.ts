@@ -1,0 +1,1 @@
+import { Router } from 'express';\nimport { register, login, me } from '../controllers/authController';\nimport { authenticate } from '../middleware/auth';\n\nconst router = Router();\n\nrouter.post('/register', register);\nrouter.post('/login', login);\nrouter.get('/me', authenticate, me);\n\nexport default router;\n
