@@ -1,0 +1,1 @@
+import { Router } from 'express';\nimport { getBudgets, upsertBudget, deleteBudget } from '../controllers/budgetController';\nimport { authenticate } from '../middleware/auth';\n\nconst router = Router();\n\nrouter.use(authenticate);\nrouter.get('/', getBudgets);\nrouter.post('/', upsertBudget);\nrouter.delete('/:id', deleteBudget);\n\nexport default router;\n
