@@ -18,4 +18,18 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Split vendor chunks so the initial JS payload stays small. Recharts
+    // alone is the heaviest dep and is only used on Dashboard.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          charts: ['recharts'],
+          icons: ['lucide-react'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+  },
 });

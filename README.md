@@ -145,9 +145,11 @@ date,type,amount,category,description
 
 ## 🧪 验证 & CI
 
-- 后端：`cd backend && npm run typecheck && npm run build`
-- 前端：`cd frontend && npm run build`
-- GitHub Actions 在每次 push / PR 时自动执行以上两步
+- 后端：`cd backend && npm run lint && npm run typecheck && npm test && npm run build`
+- 前端：`cd frontend && npm run lint && npm run typecheck && npm test && npm run build`
+- GitHub Actions 在每次 push / PR 时自动执行以上四步
+- 当前测试：**后端 24 个 (vitest)** + **前端 19 个 (vitest + Testing Library)**
+- 生产包：初始 JS **98 KB**（gzip 35 KB），recharts 按需加载
 
 ## 🗺 路线图
 
