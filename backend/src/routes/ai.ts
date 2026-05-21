@@ -1,1 +1,10 @@
-import { Router } from 'express';\nimport { getInsights } from '../controllers/aiController';\nimport { authenticate } from '../middleware/auth';\n\nconst router = Router();\n\nrouter.use(authenticate);\nrouter.get('/insights', getInsights);\n\nexport default router;\n
+import { Router } from 'express';
+import { getInsights } from '../controllers/aiController';
+import { authenticate } from '../middleware/auth';
+
+const router = Router();
+
+router.use(authenticate);
+router.get('/insights', getInsights);
+
+export default router;

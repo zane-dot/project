@@ -1,1 +1,46 @@
-{\n  "name": "finance-tracker-backend",\n  "version": "1.0.0",\n  "description": "AI Finance Tracker Backend",\n  "main": "dist/index.js",\n  "scripts": {\n    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",\n    "build": "tsc",\n    "start": "node dist/index.js",\n    "prisma:migrate": "prisma migrate dev",\n    "prisma:generate": "prisma generate"\n  },\n  "dependencies": {\n    "@prisma/client": "^5.10.0",\n    "bcryptjs": "^2.4.3",\n    "cors": "^2.8.5",\n    "express": "^4.18.3",\n    "jsonwebtoken": "^9.0.2",\n    "openai": "^4.28.0",\n    "zod": "^3.22.4",\n    "dotenv": "^16.4.5",\n    "multer": "^1.4.5-lts.1",\n    "csv-parse": "^5.5.3"\n  },\n  "devDependencies": {\n    "@types/bcryptjs": "^2.4.6",\n    "@types/cors": "^2.8.17",\n    "@types/express": "^4.17.21",\n    "@types/jsonwebtoken": "^9.0.5",\n    "@types/multer": "^1.4.11",\n    "@types/node": "^20.11.19",\n    "prisma": "^5.10.0",\n    "ts-node-dev": "^2.0.0",\n    "typescript": "^5.3.3"\n  }\n}\n
+{
+  "name": "finance-tracker-backend",
+  "version": "1.0.0",
+  "description": "AI Finance Tracker Backend",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate",
+    "prisma:seed": "ts-node prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.10.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-parse": "^5.5.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.3",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.28.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/morgan": "^1.9.9",
+    "@types/multer": "^1.4.11",
+    "@types/node": "^20.11.19",
+    "prisma": "^5.10.0",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  }
+}

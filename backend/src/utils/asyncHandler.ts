@@ -1,0 +1,20 @@
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
+
+/**
+ * Wraps an async controller so rejected promises are forwarded to Express's error handler.
+ */
+export function asyncHandler<TReq extends Request = Request>(
+  fn: (req: TReq, res: Response, next: NextFunction) => Promise<unknown>,
+): RequestHandler {
+  return (req, res, next) => {
+    Promise.resolve(fn(req as TReq, res, next)).catch(next);
+  };
+}
+
+export class HttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}

@@ -1,1 +1,28 @@
-import { Router } from 'express';\nimport { getTransactions, createTransaction, updateTransaction, deleteTransaction, getSummary } from '../controllers/transactionController';\nimport { authenticate } from '../middleware/auth';\n\nconst router = Router();\n\nrouter.use(authenticate);\nrouter.get('/', getTransactions);\nrouter.post('/', createTransaction);\nrouter.put('/:id', updateTransaction);\nrouter.delete('/:id', deleteTransaction);\nrouter.get('/summary', getSummary);\n\nexport default router;\n
+import { Router } from 'express';
+import {
+  getTransactions,
+  createTransaction,
+  updateTransaction,
+  deleteTransaction,
+  getSummary,
+  getTrends,
+} from '../controllers/transactionController';
+import { importCsv, exportCsv, upload } from '../controllers/csvController';
+import { authenticate } from '../middleware/auth';
+
+const router = Router();
+
+router.use(authenticate);
+
+// IMPORTANT: declare more specific routes BEFORE '/:id'-style ones to avoid shadowing.
+router.get('/summary', getSummary);
+router.get('/trends', getTrends);
+router.get('/export', exportCsv);
+router.post('/import', upload.single('file'), importCsv);
+
+router.get('/', getTransactions);
+router.post('/', createTransaction);
+router.put('/:id', updateTransaction);
+router.delete('/:id', deleteTransaction);
+
+export default router;

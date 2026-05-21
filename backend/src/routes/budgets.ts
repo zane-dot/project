@@ -1,1 +1,13 @@
-import { Router } from 'express';\nimport { getBudgets, upsertBudget, deleteBudget } from '../controllers/budgetController';\nimport { authenticate } from '../middleware/auth';\n\nconst router = Router();\n\nrouter.use(authenticate);\nrouter.get('/', getBudgets);\nrouter.post('/', upsertBudget);\nrouter.delete('/:id', deleteBudget);\n\nexport default router;\n
+import { Router } from 'express';
+import { getBudgets, upsertBudget, deleteBudget } from '../controllers/budgetController';
+import { authenticate } from '../middleware/auth';
+
+const router = Router();
+
+router.use(authenticate);
+
+router.get('/', getBudgets);
+router.post('/', upsertBudget);
+router.delete('/:id', deleteBudget);
+
+export default router;

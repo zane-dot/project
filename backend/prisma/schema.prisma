@@ -1,1 +1,54 @@
-generator client {\n  provider = "prisma-client-js"\n}\n\ndatasource db {\n  provider = "postgresql"\n  url      = env("DATABASE_URL")\n}\n\nmodel User {\n  id           String        @id @default(cuid())\n  email        String        @unique\n  name         String\n  passwordHash String\n  createdAt    DateTime      @default(now())\n  updatedAt    DateTime      @updatedAt\n  transactions Transaction[]\n  budgets      Budget[]\n}\n\nmodel Transaction {\n  id          String          @id @default(cuid())\n  userId      String\n  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)\n  type        TransactionType\n  amount      Float\n  category    String\n  description String?\n  date        DateTime\n  createdAt   DateTime        @default(now())\n  updatedAt   DateTime        @updatedAt\n\n  @@index([userId, date])\n}\n\nmodel Budget {\n  id        String   @id @default(cuid())\n  userId    String\n  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)\n  category  String\n  limit     Float\n  month     Int\n  year      Int\n  createdAt DateTime @default(now())\n  updatedAt DateTime @updatedAt\n\n  @@unique([userId, category, month, year])\n}\n\nenum TransactionType {\n  INCOME\n  EXPENSE\n}\n
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+  budgets      Budget[]
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  amount      Float
+  category    String
+  description String?
+  date        DateTime
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, category])
+}
+
+model Budget {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  String
+  limit     Float
+  month     Int
+  year      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, category, month, year])
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}

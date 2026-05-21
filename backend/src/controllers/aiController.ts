@@ -1,1 +1,149 @@
-import { Response } from 'express';\nimport { PrismaClient } from '@prisma/client';\nimport OpenAI from 'openai';\nimport { AuthRequest } from '../middleware/auth';\n\nconst prisma = new PrismaClient();\nconst openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nexport const getInsights = async (req: AuthRequest, res: Response): Promise<void> => {\n  const now = new Date();\n  const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);\n  const transactions = await prisma.transaction.findMany({\n    where: { userId: req.userId, date: { gte: start } },\n    orderBy: { date: 'desc' },\n  });\n\n  if (transactions.length === 0) {\n    res.json({ insights: 'Not enough data yet. Add some transactions to get AI insights!' });\n    return;\n  }\n\n  // Summarize data for prompt\n  const summary: Record<string, { income: number; expense: number }> = {};\n  transactions.forEach(t => {\n    const key = t.category;\n    if (!summary[key]) summary[key] = { income: 0, expense: 0 };\n    if (t.type === 'INCOME') summary[key].income += t.amount;\n    else summary[key].expense += t.amount;\n  });\n\n  const totalIncome = transactions.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);\n  const totalExpense = transactions.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);\n\n  const prompt = `You are a personal finance advisor. Analyze the following spending data from the past 3 months and provide 3-5 concise, actionable insights in Chinese.\n\nTotal Income: ¥${totalIncome.toFixed(2)}\nTotal Expense: ¥${totalExpense.toFixed(2)}\nNet Savings: ¥${(totalIncome - totalExpense).toFixed(2)}\n\nSpending by category:\n${Object.entries(summary).map(([cat, v]) => `- ${cat}: income ¥${v.income.toFixed(2)}, expense ¥${v.expense.toFixed(2)}`).join('\\n')}\n\nProvide practical advice to help them save more money and improve financial health.`;\n\n  const completion = await openai.chat.completions.create({\n    model: 'gpt-4',\n    messages: [{ role: 'user', content: prompt }],\n    max_tokens: 600,\n  });\n\n  res.json({ insights: completion.choices[0].message.content });\n};\n
+import { Response } from 'express';
+import OpenAI from 'openai';
+import { TransactionType } from '@prisma/client';
+import { prisma } from '../utils/prisma';
+import { asyncHandler } from '../utils/asyncHandler';
+import { logger } from '../utils/logger';
+import type { AuthRequest } from '../middleware/auth';
+
+const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+let openaiClient: OpenAI | null = null;
+function getOpenAI(): OpenAI | null {
+  if (!process.env.OPENAI_API_KEY) return null;
+  if (!openaiClient) openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return openaiClient;
+}
+
+interface CategorySummary {
+  expense: number;
+  income: number;
+  count: number;
+}
+
+export const getInsights = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+
+  const transactions = await prisma.transaction.findMany({
+    where: { userId: req.userId, date: { gte: start } },
+    orderBy: { date: 'desc' },
+  });
+
+  if (transactions.length === 0) {
+    res.json({
+      insights: '📭 暂无足够的数据。请先添加几条账单记录，再回来获取 AI 智能洞察吧。',
+      generatedAt: new Date().toISOString(),
+      source: 'fallback',
+    });
+    return;
+  }
+
+  const summary: Record<string, CategorySummary> = {};
+  let totalIncome = 0;
+  let totalExpense = 0;
+  for (const t of transactions) {
+    summary[t.category] ??= { expense: 0, income: 0, count: 0 };
+    summary[t.category].count += 1;
+    if (t.type === TransactionType.INCOME) {
+      summary[t.category].income += t.amount;
+      totalIncome += t.amount;
+    } else {
+      summary[t.category].expense += t.amount;
+      totalExpense += t.amount;
+    }
+  }
+
+  const topExpenseCategories = Object.entries(summary)
+    .filter(([, v]) => v.expense > 0)
+    .sort((a, b) => b[1].expense - a[1].expense)
+    .slice(0, 5);
+
+  const client = getOpenAI();
+  if (!client) {
+    res.json({
+      insights: buildFallbackInsights(totalIncome, totalExpense, topExpenseCategories),
+      generatedAt: new Date().toISOString(),
+      source: 'fallback',
+    });
+    return;
+  }
+
+  const prompt = [
+    'You are a personal finance advisor. Analyse the following 3-month spending data and respond in Chinese (zh-CN).',
+    'Provide 3-5 concise, numbered, actionable insights. Be encouraging but specific. Use ¥ for amounts.',
+    '',
+    `Total income: ¥${totalIncome.toFixed(2)}`,
+    `Total expense: ¥${totalExpense.toFixed(2)}`,
+    `Net savings: ¥${(totalIncome - totalExpense).toFixed(2)}`,
+    `Savings rate: ${totalIncome > 0 ? ((1 - totalExpense / totalIncome) * 100).toFixed(1) : '0'}%`,
+    '',
+    'Top expense categories:',
+    ...topExpenseCategories.map(
+      ([cat, v]) => `- ${cat}: ¥${v.expense.toFixed(2)} (${v.count} 笔)`,
+    ),
+  ].join('\n');
+
+  try {
+    const completion = await client.chat.completions.create({
+      model: MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 600,
+      temperature: 0.7,
+    });
+    res.json({
+      insights: completion.choices[0]?.message?.content ?? '',
+      generatedAt: new Date().toISOString(),
+      source: 'openai',
+      model: MODEL,
+    });
+  } catch (err) {
+    logger.warn('OpenAI call failed, returning fallback insights', { err: String(err) });
+    res.json({
+      insights: buildFallbackInsights(totalIncome, totalExpense, topExpenseCategories),
+      generatedAt: new Date().toISOString(),
+      source: 'fallback',
+    });
+  }
+});
+
+function buildFallbackInsights(
+  income: number,
+  expense: number,
+  top: Array<[string, CategorySummary]>,
+): string {
+  const net = income - expense;
+  const rate = income > 0 ? (1 - expense / income) * 100 : 0;
+  const lines: string[] = [];
+
+  lines.push(`💰 **近三个月概览**：收入 ¥${income.toFixed(2)}，支出 ¥${expense.toFixed(2)}，结余 ¥${net.toFixed(2)}。`);
+
+  if (income > 0) {
+    if (rate >= 30) {
+      lines.push(`✅ **储蓄率 ${rate.toFixed(1)}%** — 表现非常好，已超过 30% 的健康线，请继续保持。`);
+    } else if (rate >= 10) {
+      lines.push(`⚠️ **储蓄率 ${rate.toFixed(1)}%** — 处于及格线，建议把目标提高到 20% 以上。`);
+    } else if (rate >= 0) {
+      lines.push(`⚠️ **储蓄率仅 ${rate.toFixed(1)}%** — 收支接近平衡，缺乏抗风险能力，建议优先削减最大支出类别。`);
+    } else {
+      lines.push(`🚨 **当前为净支出**（结余 ¥${net.toFixed(2)}），存在透支风险，请立即核查最大支出。`);
+    }
+  }
+
+  if (top.length > 0) {
+    const [cat, v] = top[0];
+    const pct = expense > 0 ? (v.expense / expense) * 100 : 0;
+    lines.push(`📊 **最大支出类别**：${cat}，三个月共 ¥${v.expense.toFixed(2)}，占总支出 ${pct.toFixed(1)}%。如果能下降 10%，每月可多省 ¥${((v.expense / 3) * 0.1).toFixed(2)}。`);
+  }
+  if (top.length >= 3) {
+    const others = top
+      .slice(1, 4)
+      .map(([c, v]) => `${c}（¥${v.expense.toFixed(2)}）`)
+      .join('、');
+    lines.push(`🔍 **其他高频支出**：${others}。建议针对这些类别设定月度预算，并启用超支提醒。`);
+  }
+
+  lines.push('💡 **行动建议**：① 为前 3 类支出设定预算；② 每周固定一天复盘账单；③ 把每月结余的至少 50% 转入储蓄账户。');
+
+  return lines.map((l, i) => `${i + 1}. ${l}`).join('\n\n');
+}

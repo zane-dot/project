@@ -1,1 +1,33 @@
-import { Request, Response, NextFunction } from 'express';\nimport jwt from 'jsonwebtoken';\n\nexport interface AuthRequest extends Request {\n  userId?: string;\n}\n\nexport const authenticate = (req: AuthRequest, res: Response, next: NextFunction): void => {\n  const authHeader = req.headers.authorization;\n  if (!authHeader || !authHeader.startsWith('Bearer ')) {\n    res.status(401).json({ error: 'Unauthorized' });\n    return;\n  }\n  const token = authHeader.split(' ')[1];\n  try {\n    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };\n    req.userId = payload.userId;\n    next();\n  } catch {\n    res.status(401).json({ error: 'Invalid or expired token' });\n  }\n};\n
+import { Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import type { Request } from 'express';
+
+export interface AuthRequest extends Request {
+  userId?: string;
+}
+
+interface JwtPayload {
+  userId: string;
+  iat?: number;
+  exp?: number;
+}
+
+export const authenticate = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const token = authHeader.slice('Bearer '.length).trim();
+  if (!token) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload;
+    req.userId = payload.userId;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};

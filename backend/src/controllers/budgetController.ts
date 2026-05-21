@@ -1,1 +1,81 @@
-import { Response } from 'express';\nimport { PrismaClient } from '@prisma/client';\nimport { z } from 'zod';\nimport { AuthRequest } from '../middleware/auth';\n\nconst prisma = new PrismaClient();\n\nconst budgetSchema = z.object({\n  category: z.string().min(1),\n  limit: z.number().positive(),\n  month: z.number().int().min(1).max(12),\n  year: z.number().int().min(2000),\n});\n\nexport const getBudgets = async (req: AuthRequest, res: Response): Promise<void> => {\n  const { month, year } = req.query as Record<string, string>;\n  const now = new Date();\n  const m = parseInt(month || String(now.getMonth() + 1));\n  const y = parseInt(year || String(now.getFullYear()));\n  const budgets = await prisma.budget.findMany({\n    where: { userId: req.userId, month: m, year: y },\n  });\n  // Attach current spending per category\n  const start = new Date(y, m - 1, 1);\n  const end = new Date(y, m, 0, 23, 59, 59);\n  const transactions = await prisma.transaction.findMany({\n    where: { userId: req.userId, type: 'EXPENSE', date: { gte: start, lte: end } },\n  });\n  const spending: Record<string, number> = {};\n  transactions.forEach(t => { spending[t.category] = (spending[t.category] || 0) + t.amount; });\n  const result = budgets.map(b => ({\n    ...b,\n    spent: spending[b.category] || 0,\n    remaining: b.limit - (spending[b.category] || 0),\n    overBudget: (spending[b.category] || 0) > b.limit,\n  }));\n  res.json(result);\n};\n\nexport const upsertBudget = async (req: AuthRequest, res: Response): Promise<void> => {\n  const parsed = budgetSchema.safeParse(req.body);\n  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }\n  const { category, limit, month, year } = parsed.data;\n  const budget = await prisma.budget.upsert({\n    where: { userId_category_month_year: { userId: req.userId!, category, month, year } },\n    update: { limit },\n    create: { userId: req.userId!, category, limit, month, year },\n  });\n  res.json(budget);\n};\n\nexport const deleteBudget = async (req: AuthRequest, res: Response): Promise<void> => {\n  const { id } = req.params;\n  const existing = await prisma.budget.findFirst({ where: { id, userId: req.userId } });\n  if (!existing) { res.status(404).json({ error: 'Budget not found' }); return; }\n  await prisma.budget.delete({ where: { id } });\n  res.status(204).send();\n};\n
+import { Response } from 'express';
+import { z } from 'zod';
+import { TransactionType } from '@prisma/client';
+import { prisma } from '../utils/prisma';
+import { asyncHandler, HttpError } from '../utils/asyncHandler';
+import type { AuthRequest } from '../middleware/auth';
+
+const budgetSchema = z.object({
+  category: z.string().min(1).max(40),
+  limit: z.number().positive().max(1_000_000_000),
+  month: z.number().int().min(1).max(12),
+  year: z.number().int().min(2000).max(2100),
+});
+
+export const getBudgets = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { month, year } = req.query as Record<string, string>;
+  const now = new Date();
+  const m = month ? parseInt(month, 10) : now.getMonth() + 1;
+  const y = year ? parseInt(year, 10) : now.getFullYear();
+  if (!Number.isInteger(m) || m < 1 || m > 12 || !Number.isInteger(y)) {
+    throw new HttpError(400, 'Invalid month/year');
+  }
+
+  const budgets = await prisma.budget.findMany({
+    where: { userId: req.userId, month: m, year: y },
+    orderBy: { category: 'asc' },
+  });
+
+  const start = new Date(y, m - 1, 1);
+  const end = new Date(y, m, 0, 23, 59, 59, 999);
+  const transactions = await prisma.transaction.findMany({
+    where: { userId: req.userId, type: TransactionType.EXPENSE, date: { gte: start, lte: end } },
+    select: { category: true, amount: true },
+  });
+
+  const spending: Record<string, number> = {};
+  for (const t of transactions) {
+    spending[t.category] = (spending[t.category] || 0) + t.amount;
+  }
+
+  const result = budgets.map((b) => {
+    const spent = Math.round((spending[b.category] || 0) * 100) / 100;
+    const remaining = Math.round((b.limit - spent) * 100) / 100;
+    const percent = b.limit > 0 ? Math.round((spent / b.limit) * 10000) / 100 : 0;
+    return {
+      ...b,
+      spent,
+      remaining,
+      percent,
+      overBudget: spent > b.limit,
+    };
+  });
+
+  res.json(result);
+});
+
+export const upsertBudget = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const parsed = budgetSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new HttpError(400, JSON.stringify(parsed.error.flatten()));
+  }
+  const { category, limit, month, year } = parsed.data;
+  const budget = await prisma.budget.upsert({
+    where: {
+      userId_category_month_year: { userId: req.userId as string, category, month, year },
+    },
+    update: { limit },
+    create: { userId: req.userId as string, category, limit, month, year },
+  });
+  res.json(budget);
+});
+
+export const deleteBudget = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const existing = await prisma.budget.findFirst({ where: { id, userId: req.userId } });
+  if (!existing) {
+    throw new HttpError(404, 'Budget not found');
+  }
+  await prisma.budget.delete({ where: { id } });
+  res.status(204).send();
+});
