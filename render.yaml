@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: flathunt-hk
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 20.17.0
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"

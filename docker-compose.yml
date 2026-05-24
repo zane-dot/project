@@ -1,55 +1,36 @@
-version: '3.9'
-
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: finance_db
+    container_name: flathunt_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: finance_user
-      POSTGRES_PASSWORD: finance_pass
-      POSTGRES_DB: finance_tracker
+      POSTGRES_USER: flathunt
+      POSTGRES_PASSWORD: flathunt
+      POSTGRES_DB: flathunt
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - flathunt_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U finance_user -d finance_tracker']
+      test: ['CMD-SHELL', 'pg_isready -U flathunt']
       interval: 5s
-      timeout: 5s
       retries: 10
 
-  backend:
+  web:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
-    container_name: finance_backend
+    container_name: flathunt_web
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://finance_user:finance_pass@postgres:5432/finance_tracker
-      JWT_SECRET: ${JWT_SECRET:-please_change_me_to_a_strong_random_secret}
-      JWT_EXPIRES_IN: 7d
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
-      CORS_ORIGIN: http://localhost:5173
-      PORT: 3000
-      NODE_ENV: production
+      DATABASE_URL: postgresql://flathunt:flathunt@postgres:5432/flathunt?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change_me_change_me_change_me_32bytes!!}
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
     ports:
-      - '4000:3000'
+      - '3000:3000'
     depends_on:
       postgres:
         condition: service_healthy
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: finance_frontend
-    restart: unless-stopped
-    ports:
-      - '5173:80'
-    depends_on:
-      - backend
-
 volumes:
-  postgres_data:
+  flathunt_pgdata:

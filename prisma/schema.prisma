@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+
+  listings  Listing[]
+  favorites Favorite[]
+}
+
+model Listing {
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  address      String
+  districtId   String
+  rent         Int      // HKD per month
+  sqft         Int
+  bedrooms     Int
+  bathrooms    Int
+  floor        Int
+  buildingAge  Int
+  nearestMtr   String
+  minutesToMtr Int
+  lat          Float
+  lng          Float
+  features     String[]
+  imageUrls    String[]
+  status       String   @default("active") // active | rented | hidden
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownerId   String
+  owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  favorites Favorite[]
+
+  @@index([districtId])
+  @@index([rent])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+}

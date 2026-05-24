@@ -1,34 +1,14 @@
-# Dependencies
-node_modules/
-
-# Build outputs
-dist/
-build/
-*.tsbuildinfo
-frontend/vite.config.d.ts
-frontend/vite.config.js
-
-# Environment variables
+node_modules
+.next
+out
+dist
 .env
 .env.local
-.env.*.local
-
-# Logs
-logs/
 *.log
-npm-debug.log*
-
-# OS
 .DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# Prisma
-backend/prisma/migrations/
-
-# Coverage
-coverage/
+.vercel
+coverage
+prisma/dev.db*
+.idea
+.vscode/*
+!.vscode/extensions.json
